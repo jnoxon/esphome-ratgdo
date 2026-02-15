@@ -108,6 +108,7 @@ namespace ratgdo {
             virtual void set_close_limit(bool);
             virtual void set_discrete_open_pin(InternalGPIOPin* pin);
             virtual void set_discrete_close_pin(InternalGPIOPin* pin);
+            virtual void set_wall_panel(bool) {}
 
             virtual const Traits& traits() const;
 

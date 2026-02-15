@@ -98,6 +98,8 @@ namespace ratgdo {
 
             const Traits& traits() const { return this->traits_; }
 
+            void set_wall_panel(bool wall_panel) override { this->wall_panel_ = wall_panel; }
+
             // methods not used by secplus1
             void set_open_limit(bool state) { }
             void set_close_limit(bool state) { }
@@ -134,6 +136,7 @@ namespace ratgdo {
 
             // 4-byte members
             uint32_t wall_panel_emulation_start_ { 0 };
+            uint32_t wall_panel_emulation_last_call_ { 0 };
             uint32_t last_rx_ { 0 };
             uint32_t last_tx_ { 0 };
             uint32_t last_status_query_ { 0 };
@@ -151,6 +154,7 @@ namespace ratgdo {
             LightState maybe_light_state { LightState::UNKNOWN };
             LockState maybe_lock_state { LockState::UNKNOWN };
             DoorState maybe_door_state { DoorState::UNKNOWN };
+            bool wall_panel_ { true };
             WallPanelEmulationState wall_panel_emulation_state_ { WallPanelEmulationState::WAITING };
             struct {
                 uint8_t door_moving : 1;

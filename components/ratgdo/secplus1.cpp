@@ -29,6 +29,18 @@ namespace ratgdo {
 
         void Secplus1::loop()
         {
+            // Diagnostic: detect if wall panel emulation chain has stalled
+            if (this->wall_panel_emulation_state_ == WallPanelEmulationState::RUNNING &&
+                this->wall_panel_emulation_last_call_ > 0 &&
+                (millis() - this->wall_panel_emulation_last_call_) > 5000) {
+                ESP_LOGE(TAG, "EMULATION STALL DETECTED: no callback for %dms, state=%d, wall_panel_starting=%d",
+                         millis() - this->wall_panel_emulation_last_call_,
+                         static_cast<int>(this->wall_panel_emulation_state_),
+                         this->flags_.wall_panel_starting);
+                // Log once then reset the timestamp to avoid spamming
+                this->wall_panel_emulation_last_call_ = millis();
+            }
+
             auto rx_cmd = this->read_command();
             if (rx_cmd) {
                 this->handle_command(rx_cmd.value());
@@ -46,15 +58,22 @@ namespace ratgdo {
         void Secplus1::dump_config()
         {
             ESP_LOGCONFIG(TAG, "  Protocol: SEC+ v1");
+            ESP_LOGCONFIG(TAG, "  Wall panel: %s", this->wall_panel_ ? "yes" : "no (emulation mode)");
         }
 
         void Secplus1::sync()
         {
-            this->wall_panel_emulation_state_ = WallPanelEmulationState::WAITING;
-            this->wall_panel_emulation_start_ = millis();
             this->door_state = DoorState::UNKNOWN;
             this->light_state = LightState::UNKNOWN;
             this->scheduler_->cancel_timeout(this->ratgdo_, "wall_panel_emulation");
+
+            if (!this->wall_panel_) {
+                ESP_LOGI(TAG, "Wall panel detection disabled, starting emulation immediately");
+                this->wall_panel_emulation_state_ = WallPanelEmulationState::RUNNING;
+            } else {
+                this->wall_panel_emulation_state_ = WallPanelEmulationState::WAITING;
+                this->wall_panel_emulation_start_ = millis();
+            }
             this->wall_panel_emulation();
 
             this->scheduler_->set_timeout(this->ratgdo_, "", 45000, [this] {
@@ -67,7 +86,9 @@ namespace ratgdo {
 
         void Secplus1::wall_panel_emulation(size_t index)
         {
+            this->wall_panel_emulation_last_call_ = millis();
             if (this->flags_.wall_panel_starting) {
+                ESP_LOGW(TAG, "wall_panel_starting flag is set, resetting emulation to WAITING");
                 this->wall_panel_emulation_state_ = WallPanelEmulationState::WAITING;
             } else if (this->wall_panel_emulation_state_ == WallPanelEmulationState::WAITING) {
                 ESP_LOGD(TAG, "Looking for security+ 1.0 wall panel...");
@@ -115,6 +136,11 @@ namespace ratgdo {
                     if (index == 18) {
                         index = 15;
                     }
+                }
+                // Log every ~25s (100 iterations × 250ms) to confirm chain is alive without flooding
+                static uint32_t emulation_count = 0;
+                if (++emulation_count % 100 == 0) {
+                    ESP_LOGD(TAG, "Emulation alive: iteration=%d, index=%d, heap=%u", emulation_count, index, ESP.getFreeHeap());
                 }
                 this->scheduler_->set_timeout(this->ratgdo_, "wall_panel_emulation", 250, [this, index] {
                     this->wall_panel_emulation(index);
@@ -312,9 +338,14 @@ namespace ratgdo {
 
         void Secplus1::handle_command(const RxCommand& cmd)
         {
+            ESP_LOGD(TAG, "RX cmd: req=0x%02X resp=0x%02X", static_cast<uint8_t>(cmd.req), cmd.resp);
             if (cmd.req == CommandType::TOGGLE_DOOR_RELEASE || cmd.resp == 0x31) {
-                ESP_LOGD(TAG, "wall panel is starting");
-                this->flags_.wall_panel_starting = true;
+                if (!this->wall_panel_) {
+                    ESP_LOGD(TAG, "Ignoring wall panel start signal (wall panel detection disabled)");
+                } else {
+                    ESP_LOGW(TAG, "wall panel is starting (req=0x%02X resp=0x%02X)", static_cast<uint8_t>(cmd.req), cmd.resp);
+                    this->flags_.wall_panel_starting = true;
+                }
             } else if (cmd.req == CommandType::QUERY_DOOR_STATUS) {
 
                 DoorState door_state;

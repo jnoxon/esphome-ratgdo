@@ -34,6 +34,7 @@ CONF_RATGDO_ID = "ratgdo_id"
 CONF_ON_SYNC_FAILED = "on_sync_failed"
 
 CONF_PROTOCOL = "protocol"
+CONF_WALL_PANEL = "wall_panel"
 
 PROTOCOL_SECPLUSV1 = "secplusv1"
 PROTOCOL_SECPLUSV2 = "secplusv2"
@@ -62,6 +63,10 @@ def validate_protocol(config):
         )
     #    if config.get(CONF_PROTOCOL, None) == PROTOCOL_DRYCONTACT and CONF_DRY_CONTACT_OPEN_SENSOR not in config:
     #        raise cv.Invalid("dry_contact_open_sensor is required when using protocol drycontact")
+    if CONF_WALL_PANEL in config and config.get(CONF_PROTOCOL, None) != PROTOCOL_SECPLUSV1:
+        raise cv.Invalid(
+            "wall_panel option is only valid when using protocol secplusv1"
+        )
     return config
 
 
@@ -90,6 +95,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             # cv.Inclusive(CONF_DRY_CONTACT_OPEN_SENSOR,CONF_DRY_CONTACT_SENSOR_GROUP): cv.use_id(binary_sensor.BinarySensor),
             # cv.Inclusive(CONF_DRY_CONTACT_CLOSE_SENSOR,CONF_DRY_CONTACT_SENSOR_GROUP): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_WALL_PANEL, default=True): cv.boolean,
             cv.Optional(CONF_DRY_CONTACT_OPEN_SENSOR): cv.use_id(
                 binary_sensor.BinarySensor
             ),
@@ -158,6 +164,7 @@ async def to_code(config):
     elif config[CONF_PROTOCOL] == PROTOCOL_DRYCONTACT:
         cg.add_build_flag("-DPROTOCOL_DRYCONTACT")
     cg.add(var.init_protocol())
+    cg.add(var.set_wall_panel(config[CONF_WALL_PANEL]))
 
     if config.get(CONF_DISCRETE_OPEN_PIN):
         pin = await cg.gpio_pin_expression(config[CONF_DISCRETE_OPEN_PIN])

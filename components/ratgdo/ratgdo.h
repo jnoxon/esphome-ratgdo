@@ -120,6 +120,7 @@ namespace ratgdo {
         void set_dry_contact_close_sensor(esphome::binary_sensor::BinarySensor* dry_contact_close_sensor_);
         void set_discrete_open_pin(InternalGPIOPin* pin) { this->protocol_->set_discrete_open_pin(pin); }
         void set_discrete_close_pin(InternalGPIOPin* pin) { this->protocol_->set_discrete_close_pin(pin); }
+        void set_wall_panel(bool wall_panel) { this->protocol_->set_wall_panel(wall_panel); }
 
         Result call_protocol(Args args);
 
